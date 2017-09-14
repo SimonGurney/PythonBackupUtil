@@ -201,4 +201,4 @@ class DatabaseCli(Cli):
         super().__init__(backup_repository)
         self.db = Job(self.backup_repository).db     
         
-RootCli(r"C:\users\simon\backup").cmdloop()
+RootCli(r"C:\backup").cmdloop()

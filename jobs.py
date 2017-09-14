@@ -176,8 +176,3 @@ class Backup(Job):
             print("file")
         if not self.check_path(self.backup_repository, True, True):
             raise ValueError("Backup repository not suitable for writing backups")          
-            
-a = Restore(r"C:\users\simon\backup")
-a.use_backup(6)
-a.retrieve_inventory()
-a.build_dir_list()
