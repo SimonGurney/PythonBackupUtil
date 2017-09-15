@@ -115,7 +115,7 @@ class Restore(Job):
         for dir in dirs:
             returnable.append({"id":"Nil","type":"dir","name":dir})
         for File in self.inventory:
-            if File.path == path:
+            if (File.path == path) or (File.path == (path + sep)):
                 returnable.append({"id":self.inventory.index(File),"type":"file","name":File.name})
         if not returnable:
             return False
