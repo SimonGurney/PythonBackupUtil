@@ -2,6 +2,7 @@ from os import walk, path, access, R_OK, W_OK, X_OK, sep
 from database import Database
 from file import File
 from re import search, escape
+import logging
 
 class Job:
     db = None
@@ -13,15 +14,20 @@ class Job:
     
     def test_db(self):
         if not self.db.verify_tables():
-            print("There is a problem with the database")
+            logging.info("There is a problem with the database")
             return False
         return True
     def use_backup(self, id):
+        logging.debug("Entered the use_backup method of Job from jobs with id %s",id)
         backup = self.db.list_backups(str(id))
+        logging.debug("list_backups returned...\n%s",backup)
         if not backup:
+            logging.info("Returning false as nothing returned from call to list_backups")
             return False
         self.id = backup[0][0]
-        self.backup_target = backup[0][2]
+        self.backup_target = backup[0][2].rstrip(sep)
+        logging.debug("Self.id = '%s', Self.backup_target = '%s'",self.id,self.backup_target)
+        logging.info("Returning true")
         return True
     def check_path(self, target, force_dir = False, force_writable = False):
         if not path.isdir(target):
@@ -74,35 +80,57 @@ class Restore(Job):
         if not self.test_db():
             return False
         if self.inventory:
-            print("Inventory already exists, dicard with discard_inventory") 
+            logging.warn("Inventory already exists, dicard with discard_inventory") 
             return False
         if self.id is None:
-            print("No backup ID set")
+            logging.warn("No backup ID set")
             return False
         self.inventory = self.db.retreive_files_from_backup(self.id)
         if self.inventory:
+            logging.info("Inventory retrieved and contains at least one item")
             return True
     def build_dir_list(self):
+        logging.debug("Entered the build_dir_list function of Restore from jobs")
         if not self.inventory:
-            print("No inventory to work with")
+            logging.info("No inventory to work with")
             return False
         dir_list = set()
         for File in self.inventory:
             dir_list.add(File.path)
+            logging.debug("Added the following file path - '%s'",File.path)
+            logging.debug("Beginning the loop to add upstream paths to the dir_list")
+            buf = path.split(File.path)[0]
+            while True:
+                if buf in dir_list:
+                    logging.debug("Breaking loop as file path already in dir_list")
+                    break
+                dir_list.add(buf)
+                logging.debug("Added '%s' to dir_list",buf)
+                if path.split(buf)[1] == "":
+                    logging.debug("Reached the root file path, no more directories to add")
+                    break
+                buf = path.split(buf)[0]
+        logging.debug("Beginning the loop to add upstream paths for the dir_list")
         buf = path.split(self.backup_target)[0]
-        looping = True
-        while looping:
+        while True:
             dir_list.add(buf)
+            logging.debug("Added '%s' to dir_list",buf)
             if path.split(buf)[1] == "":
+                logging.debug("Reached the root file path, no more directories to add")
                 break
             buf = path.split(buf)[0]
         self.dir_list = sorted(dir_list)
+        logging.debug("dir_list built and is as follows...\n%s",self.dir_list)
+        logging.info("dir_list set")
         return True
     def return_path_contents(self, path):
+        logging.debug("Entering the 'return_path_contents' function of Restore from jobs")
+        logging.debug("path = '%s'",path)
         path = path.lower()
         path = path.rstrip(sep)
+        logging.debug("After normalising, path = '%s'", path)
         if not self.dir_list:
-            print("Not built a directory list yet")
+            logging.info("Not built a directory list yet")
             return False
         dirs = set()
         returnable = list()
@@ -111,8 +139,12 @@ class Restore(Job):
             if path in file_path:
                 re = search(pattern,file_path)
                 if re:
-                    dirs.add(re.group(0))
+                    match = re.group(0)
+                    logging.debug("Regex returned the following match '%s'",match)
+                    if match:
+                        dirs.add(match)
         for dir in dirs:
+            logging.debug("Appending directory - '%s'",dir)
             returnable.append({"id":"Nil","type":"dir","name":dir})
         for File in self.inventory:
             if (File.path == path) or (File.path == (path + sep)):
@@ -168,7 +200,7 @@ class Backup(Job):
 
     def __init__(self, backup_target, backup_repository):
         super().__init__(backup_repository)
-        self.backup_target = backup_target
+        self.backup_target = backup_target.lower()
         if not self.check_path(self.backup_target):
             raise ValueError("Backup target is not readable")
         if not self.check_path(self.backup_target, True):

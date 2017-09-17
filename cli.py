@@ -1,27 +1,34 @@
 from jobs import Backup, Restore, Job
 from database import Database
 from cmd import Cmd
-from os import path
-
+from os import path, sep
+import logging
 class Cli(Cmd):
     backup_repository = None;
     def emptyline(self):
+        logging.debug("Empty line registered")
         pass #required as input() causes weird behaviour
     def do_return(self, arg):
         "Return to home menu"
+        logging.debug("Returning to home menu")
         RootCli(self.backup_repository).cmdloop()
     def do_quit(self, arg):
+        logging.info("Quit command issued, calling sys exit")
         "Quit the CLI"            
         raise SystemExit(0)
     def __init__(self,backup_repository):
         super().__init__()
         self.backup_repository = backup_repository
     def are_you_sure(self, message = None):
+        logging.debug("Entering are you sure method of Cli from cli")
         if message:
+            logging.debug("Prompt message is %s",message)
             print(message)
         if input("      are you sure? y/n (default is n) > ") != "y":
+            logging.info("User did not enter 'y' to are you sure prompt")
             return False
         else:
+            logging.info("User entered 'y' to are you sure prompt")
             return True
      
 class RootCli(Cli):
@@ -54,6 +61,8 @@ class JobCli(Cli):
 class BackupCli(JobCli):
     prompt = "Backup > "
     def do_backup(self, args):
+        """Take a backup
+        |   Syntax: backup""" 
         if self.j.backup_files():
             print("Success")
     def __init__(self,backup_repository,backup_target):
@@ -92,7 +101,6 @@ class RestoreCli(JobCli):
             BrowseCli(self.j).cmdloop()
         else:
             self.onecmd("help browse_backup")
-    ##### Building dirlist function atm
     def __init__(self,backup_repository):
         super().__init__(backup_repository)
         self.j = Restore(backup_repository)
@@ -122,14 +130,19 @@ class BrowseCli(Cli):
         |   Syntax: cd <directory>
         |       + cd folder1
         |       + cd .. """
-        if (len(args) > 0) and (len(args.split()) == 1):
+        logging.debug("Entered the do_cd function of BrowseCLI from cli")
+        if (len(args) > 0):# and (len(args.split()) == 1):
             if args == "..":
                 requested_path = path.split(self.path)[0]
             else:
-                requested_path = self.path + "\\" + args
-            if requested_path in self.j.dir_list:
-                self.path = requested_path
+                requested_path = self.path + "\\" + args.rstrip(sep)
+            logging.debug("requested_path is set to '%s'",requested_path)
+            logging.debug("self.j.dir_list is \n%s",self.j.dir_list)
+            if (requested_path in self.j.dir_list) or (requested_path + sep in self.j.dir_list):
+                logging.info("requested_path found in the dir_list, allowing cd")
+                self.path = requested_path.rstrip(sep)
             else:
+                logging.info("requested_path not found in the dir_list, disallowing cd")
                 print("Path does not exist")
         else:
             self.onecmd("help cd")
@@ -171,7 +184,9 @@ class DatabaseCli(Cli):
         |       + verify """  
         if args == "tables":
             if self.db.verify_tables():
-                print("tables are fine")
+                print("Tables are fine")
+            else:
+                print("Tables are broken, troubleshoot or rebuild with create_tables")
         elif args == "dummy":
             pass
         else:
@@ -199,6 +214,4 @@ class DatabaseCli(Cli):
         self.db.create_tables()
     def __init__(self,backup_repository):
         super().__init__(backup_repository)
-        self.db = Job(self.backup_repository).db     
-        
-RootCli(r"C:\users\simon\backup").cmdloop()
+        self.db = Job(self.backup_repository).db

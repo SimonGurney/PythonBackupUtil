@@ -1,7 +1,8 @@
 from hashlib import sha512
 from os import path
 from shutil import copyfile
-
+import logging
+logger = logging.getLogger('log')
 BLOCK_SIZE = 1024
 
 class File:
