@@ -4,7 +4,7 @@ from shutil import copyfile
 import logging
 logger = logging.getLogger('log')
 BLOCK_SIZE = 1024
-
+#
 class File:
     name = None
     path = None
