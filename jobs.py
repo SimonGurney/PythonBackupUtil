@@ -27,54 +27,84 @@ class Job:
         self.id = backup[0][0]
         self.backup_target = backup[0][2].rstrip(sep)
         logging.debug("Self.id = '%s', Self.backup_target = '%s'",self.id,self.backup_target)
-        logging.info("Returning true")
+        logging.debug("Returning true")
         return True
     def check_path(self, target, force_dir = False, force_writable = False):
+        logging.debug("Entered the check_path method of Job from jobs with target: %s",target)
         if not path.isdir(target):
+            logging.debug("Target is not a directory")
             if force_dir:
+                logging.info("Path is not a directory but force_dir set to true")
+                logging.debug("Returning False")
                 return False
             else:
+                logging.info("Path is not a directory and force_dir is false, testing if its a file and returning result")
                 return path.isfile(target)
+        logging.debug("Target is a directory")
         if (force_writable and not access(target,W_OK | X_OK)):
+            logging.info("Target does not have write permissions but force_writable set to true")
+            logging.debug("Returning false")
             return False
         elif not access(target,R_OK):
+            logging.debug("Target is not readable")
+            logging.debug("Returning false")
             return False
+        logging.debug("Target is suitable by virtue of not failing earlier checks")
+        logging.debug("Returning true")
         return True
     def discard_inventory(self):
+        logging.debug("Inventory is currently set to:\n%s",self.inventory)
         self.inventory = None
+        logging.info("Discarded inventory")
+        logging.debug("Inventory is currently set to:\n%s",self.inventory)
     def __init__(self, backup_repository):
+        logging.debug("db_name set to %s",self.db_name)
+        logging.debug("backup_repository provided as %s",backup_repository)
         self.backup_repository = backup_repository
         if not self.check_path(self.backup_repository, True):
+            logging.info("The provided backup repository is not suitable")
             raise ValueError("Backup repository not suitable for reading backups")
         self.db = Database(path.join(self.backup_repository,self.db_name))
+        logging.debug("self.db set")
 
 class Restore(Job):
     dir_list = None;
     def list_backups(self):
         backups = self.db.list_backups()
         if backups is not None:
+            logging.debug("Backups returned:\n%s",backups)
             print("Backup ID        || TimeStamp                    || Base path")
             print("-------------------------------------------------------------------------------")
             for backup in backups:
                 print(backup[0],"               ||",backup[1],"         ||",backup[2])
         else:
+            logging.info("No backups returned from the database")
             print("No backups")
-    def restore_file(self, file, destination = None):
+    def restore_file(self, file, destination = False):
+        logging.debug("Entered restore_file function with file set to: %s",file)
         if type(file) is str:
             file = int(file)
         if type(file) is int:
-            file = File(self.inventory[file].path, self.inventory[file].path, self.inventory[file].hash, self.inventory[file].size)
+            file = File(self.inventory[file].path, self.inventory[file].name, self.inventory[file].hash, self.inventory[file].size)
         if not file.hash:
             ValueError("Need a file object or inventory index reference")
         name = False
-        if destination is None:
-            destination = file.path
-        elif self.check_path(destination, False, True):
-            if not self.check_path(destination, True, True):
-                destination,name = path.split(destination)
+        if destination:
+            logging.debug("Destination set to %s",destination)
+        if not destination:
+            logging.debug("Destination was set to False, not passing a destination path or filename")
+        elif self.check_path(destination, True, True):
+            logging.debug("Destination path is a directory and writeable")
+        elif self.check_path((path.split(destination)[0]),True,True):
+            logging.debug("Destination path including a filename so storing name in name variable")
+            destination,name = path.split(destination)
         else:
-            ValueError("Restore path not suitable")
+            raise ValueError("Restore path not suitable")
+        logging.debug("Backup repositry for restore set to %s",self.backup_repository)
+        logging.debug("Destination path for restore set to %s",destination)
+        logging.debug("Destination file name set to %s",name)
         if not file.restore_file(self.backup_repository, destination, name):
+            logging.info("Restore Failed")
             print("Restore failed")  
     def retrieve_inventory(self):
         if not self.test_db():

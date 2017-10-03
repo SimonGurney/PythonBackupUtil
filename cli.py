@@ -20,7 +20,6 @@ class Cli(Cmd):
         super().__init__()
         self.backup_repository = backup_repository
     def are_you_sure(self, message = None):
-        logging.debug("Entering are you sure method of Cli from cli")
         if message:
             logging.debug("Prompt message is %s",message)
             print(message)
@@ -38,7 +37,7 @@ class RootCli(Cli):
         |   Syntax: backup <backup target>
         |       + backup '\\root\\'
         |       + backup 'C:\\temp' """  
-        if (len(args) is not 0) and (len(args.split()) == 1):
+        if (len(args) is not 0): # and (len(args.split()) == 1):
             try:
                 BackupCli(self.backup_repository,args).cmdloop()
             except ValueError as ErrorMessage:
@@ -47,11 +46,16 @@ class RootCli(Cli):
             self.onecmd("help backup")
     def do_restore(self, args):
         "Enter restore task sub menu"
-        RestoreCli(self.backup_repository).cmdloop()
-
+        try:
+            RestoreCli(self.backup_repository).cmdloop()
+        except ValueError as ErrorMessage:
+            print(ErrorMessage)
     def do_database(self, args):
         "Enter database management sub menu"
-        DatabaseCli(self.backup_repository).cmdloop()
+        try:
+            DatabaseCli(self.backup_repository).cmdloop()
+        except ValueError as ErrorMessage:
+            print(ErrorMessage)
     def __init__(self,backup_repository):
         super().__init__(backup_repository)
 class JobCli(Cli):
@@ -65,6 +69,8 @@ class BackupCli(JobCli):
         |   Syntax: backup""" 
         if self.j.backup_files():
             print("Success")
+        else:
+            print("Backup failed")
     def __init__(self,backup_repository,backup_target):
         super().__init__(backup_repository)
         self.backup_target = backup_target
@@ -82,6 +88,8 @@ class RestoreCli(JobCli):
         if (len(args) > 0) and (len(args.split()) == 1):
             if not self.j.use_backup(args):
                 print("Could not select backup id %s! Does it exist?" %args)
+            else:
+                print("Active backup set to %s" %self.j.id)
         else:
             self.onecmd("help use_backup")  
     def do_browse(self, args):
@@ -100,7 +108,7 @@ class RestoreCli(JobCli):
                 return False
             BrowseCli(self.j).cmdloop()
         else:
-            self.onecmd("help browse_backup")
+            self.onecmd("help browse")
     def __init__(self,backup_repository):
         super().__init__(backup_repository)
         self.j = Restore(backup_repository)
@@ -130,7 +138,6 @@ class BrowseCli(Cli):
         |   Syntax: cd <directory>
         |       + cd folder1
         |       + cd .. """
-        logging.debug("Entered the do_cd function of BrowseCLI from cli")
         if (len(args) > 0):# and (len(args.split()) == 1):
             if args == "..":
                 requested_path = path.split(self.path)[0]
@@ -151,22 +158,19 @@ class BrowseCli(Cli):
         |   Syntax: restore <file id> <dest>(optional)
         |       + restore 14
         |       + restore 14 c:\temp\recovered.pdf """
-        dirname = False
-        filename = False
+        destination = False
         if len(args) > 0:
-            args = args.split()
+            args = args.split(" ",1)
             if len(args) == 1:
                 inventory_index = int(args[0])
-                print(inventory_index)
-            elif len(args) == 2:
+                logging.debug("User requested restore of %s without the optional destination",inventory_index)
+            elif len(args) > 1:
+                destination = args[1]
                 inventory_index = int(args[0])
-                dirname, filename = path.split(args[1])
-                if filename == "":
-                    filename = False
-                print(dirname," ",filename)
+                logging.debug("User requested restore of %s with the optional destination %s",inventory_index,destination)
             else:
                 self.onecmd("help restore")
-            if self.j.inventory[inventory_index].restore_file(self.j.backup_repository,dirname,filename):
+            if self.j.restore_file(inventory_index,destination):
                 print("success")
         else:
             self.onecmd("help restore")            

@@ -33,16 +33,22 @@ class File:
             return False
     def restore_file(self, backup_repository, destination = False, name = False):
         if not name:
+            logging.debug("Name set to False")
             name = self.name
+            logging.debug("Name set to %s",name)
         if not destination:
+            logging.debug("Destination set to False")
             destination = self.path
+            logging.debug("Destination set to %s",destination)
         try:
             copyfile(path.join(backup_repository, self.hash),path.join(destination, name))
             return True
-        except:
+        except ValueError as ErrorMessage:
+            print(ErrorMessage)
             return False    
     def __init__(self, path, name, hash = None, size = None):
         self.name = name.lower()
+        logging.debug("Name set to %s",self.name)
         self.path = path.lower()
         self.hash = hash
         self.size = size
