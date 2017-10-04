@@ -47,7 +47,7 @@ class Database:
             return 0
         except sqlite3.IntegrityError:
             self.cursor.execute("SELECT stored FROM files WHERE hash = ?", [f.hash])
-            return(self.cursor.fetchone()[0]) # Return the stored flag
+            return(self.cursor.fetchone()[0]) # Return the stored flag  
     def set_file_as_stored(self, f):
         self.cursor.execute('''UPDATE files SET stored = 1 WHERE hash = ?''',[f.hash])
     def register_file_instance(self, f): 
@@ -93,4 +93,3 @@ class Database:
         self.path = path
 
         self.connect()
-            

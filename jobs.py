@@ -73,10 +73,10 @@ class Restore(Job):
         backups = self.db.list_backups()
         if backups is not None:
             logging.debug("Backups returned:\n%s",backups)
-            print("Backup ID        || TimeStamp                    || Base path")
+            print("Backup ID\t\t|| TimeStamp\t\t\t|| Base path")
             print("-------------------------------------------------------------------------------")
             for backup in backups:
-                print(backup[0],"               ||",backup[1],"         ||",backup[2])
+                print(backup[0],"\t\t\t||",backup[1],"\t\t||",backup[2])
         else:
             logging.info("No backups returned from the database")
             print("No backups")
@@ -189,6 +189,7 @@ class Backup(Job):
     backup_file = False
     def register_backup(self):
         self.id = self.db.register_backup(self.backup_target)
+        logging.debug("Self.id set to %s",self.id)
     def generate_inventory(self):
         if self.inventory:
             print("Inventory already exists, dicard with discard_inventory")
@@ -202,7 +203,9 @@ class Backup(Job):
                 try:
                     f = File(root,filename)
                 except PermissionError:
-                    print("%s\\%s not readable" %(root, filename))
+                    logging.warning("%s\\%s not readable, ommitting it from backup",root, filename)
+                except:
+                    logging.warning("%s\\%s has a problem, ommitting it from backup",root,filename)
                 else:
                     self.inventory.append(f)
         if self.inventory:
@@ -211,19 +214,22 @@ class Backup(Job):
         if not self.test_db():
             return False
         if not self.id:
+            logging.debug("No backup id set so registering a new backup to use")
             self.register_backup()
+        logging.debug("self.id is set to %s",self.id)
         if not self.generate_inventory():
+            logging.warn("Could not generate inventory, returning false")
             return False
         for file in self.inventory:
             if self.db.register_file(file) is 0:
                 if file.backup_file(self.backup_repository):
                     self.db.set_file_as_stored(file)
                     self.db.commit()
-                    print("copied %s\\%s to repository" % (file.path, file.name) )
+                    logging.info("copied %s%s to repository", file.path, file.name)
                 else:
-                    print("Could not copy file", file.name)
+                    logging.warn("Could not copy file", file.name)
             else:
-                print("No need to copy file, already have it")
+                logging.debug("No need to copy file, already have it")
             self.db.register_file_instance(file)
         self.db.commit() 
         return True
