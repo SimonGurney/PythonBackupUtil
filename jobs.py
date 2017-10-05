@@ -53,10 +53,16 @@ class Job:
         logging.debug("Returning true")
         return True
     def discard_inventory(self):
-        logging.debug("Inventory is currently set to:\n%s",self.inventory)
-        self.inventory = None
+        if self.inventory is None:
+            logging.info("No inventory to discard")
+            return
+        if isinstance(self.inventory,list):
+            logging.debug("Inventory currently contains %s items",len(self.inventory))
+        else:
+            logging.warning("Inventory is not a list, this is not expected behaviour. Contents:\n%s",self.inventory)
+        self.inventory = False
         logging.info("Discarded inventory")
-        logging.debug("Inventory is currently set to:\n%s",self.inventory)
+        logging.debug("Inventory has been discarded")
     def __init__(self, backup_repository):
         logging.debug("db_name set to %s",self.db_name)
         logging.debug("backup_repository provided as %s",backup_repository)
@@ -110,10 +116,10 @@ class Restore(Job):
         if not self.test_db():
             return False
         if self.inventory:
-            logging.warn("Inventory already exists, dicard with discard_inventory") 
+            logging.warning("Inventory already exists, discard with discard_inventory") 
             return False
         if self.id is None:
-            logging.warn("No backup ID set")
+            logging.warning("No backup ID set")
             return False
         self.inventory = self.db.retreive_files_from_backup(self.id)
         if self.inventory:
@@ -192,7 +198,7 @@ class Backup(Job):
         logging.debug("Self.id set to %s",self.id)
     def generate_inventory(self):
         if self.inventory:
-            print("Inventory already exists, dicard with discard_inventory")
+            logging.warning("Inventory already exists, discard with discard_inventory")
             return False
         self.inventory = []
         if self.backup_file:
@@ -224,13 +230,16 @@ class Backup(Job):
             if self.db.register_file(file) is 0:
                 if file.backup_file(self.backup_repository):
                     self.db.set_file_as_stored(file)
+                    logging.debug("File set as stored in the DB, need to commit DB to ensure consistency")
                     self.db.commit()
                     logging.info("copied %s%s to repository", file.path, file.name)
                 else:
-                    logging.warn("Could not copy file", file.name)
+                    logging.warn("%s needs to be backed up but could not copy it.  Will register file instance in the DB in case we manage to get it in a later backup", file.name)
             else:
                 logging.debug("No need to copy file, already have it")
+            logging.debug("Now need to register the instance of the file")
             self.db.register_file_instance(file)
+        logging.debug("Finished processing files, commiting the database")
         self.db.commit() 
         return True
 

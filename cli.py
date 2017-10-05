@@ -67,9 +67,14 @@ class BackupCli(JobCli):
     def do_backup(self, args):
         """Take a backup
         |   Syntax: backup""" 
+        logging.debug("Entered backupCli with target %s",self.backup_target)
         if self.j.backup_files():
+            logging.info("Successfully backed up %s",self.backup_target)
             print("Success")
+            self.j.discard_inventory()
+            logging.debug("Discarded inventory so a new backup can be run immediately")
         else:
+            logging.info("Failed to back up %s",self.backup_target)
             print("Backup failed")
     def __init__(self,backup_repository,backup_target):
         super().__init__(backup_repository)
@@ -171,7 +176,10 @@ class BrowseCli(Cli):
             else:
                 self.onecmd("help restore")
             if self.j.restore_file(inventory_index,destination):
+                logging.info("Restore was successful")
                 print("success")
+            else:
+                logging.warning("Restore failed")
         else:
             self.onecmd("help restore")            
     def __init__(self,j):

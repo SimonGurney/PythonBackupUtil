@@ -11,23 +11,35 @@ class Database:
               {"name":"backup_files", "columns":("id", "path", "name", "file_hash", "backup_id")})
     backupid = None
     def commit(self):
+        logging.debug("Committing any changes to the SQLite3 db")
         self.db.commit()
+    def execute(self, command, variables = None):
+        logging.debug("Entered the db execute function with the command %s",command)
+        if variables is not None:
+            logging.debug("Some variables have been provided: \n%s",variables)
+            self.cursor.execute(command,variables)
+        else:
+            logging.debug("No variables have been provided")
+            self.cursor.execute(command)
     def drop_tables(self):
         droptables = """PRAGMA writable_schema = 1;
                       delete from sqlite_master where type in ('table', 'index', 'trigger');
                       PRAGMA writable_schema = 0;
                       VACUUM;
                       PRAGMA INTEGRITY_CHECK;"""
+        logging.info("Dropping all tables using the SQL:\n%s",droptables)
         self.cursor.executescript(droptables)
     def create_tables(self):
         self.drop_tables()
-        self.cursor.execute('''CREATE TABLE files(hash CHAR(128) PRIMARY KEY, size INTEGER NOT NULL, stored BOOLEAN NOT NULL)''')
-        self.cursor.execute('''CREATE TABLE backups(id INTEGER PRIMARY KEY AUTOINCREMENT, created CHAR(128) NOT NULL, path CHAR(300) NOT NULL)''')
-        self.cursor.execute('''CREATE TABLE backup_files(id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT NOT NULL, name TEXT NOT NULL, file_hash CHAR(64) NOT NULL, backup_id INTEGER NOT NULL, FOREIGN KEY(file_hash) REFERENCES files(hash), FOREIGN KEY(backup_id) REFERENCES backups(id))''')
+        logging.info("Creating the DB tables")
+        self.execute('''CREATE TABLE files(hash CHAR(128) PRIMARY KEY, size INTEGER NOT NULL, stored BOOLEAN NOT NULL)''')
+        self.execute('''CREATE TABLE backups(id INTEGER PRIMARY KEY AUTOINCREMENT, created CHAR(128) NOT NULL, path CHAR(300) NOT NULL)''')
+        self.execute('''CREATE TABLE backup_files(id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT NOT NULL, name TEXT NOT NULL, file_hash CHAR(64) NOT NULL, backup_id INTEGER NOT NULL, FOREIGN KEY(file_hash) REFERENCES files(hash), FOREIGN KEY(backup_id) REFERENCES backups(id))''')
     def connect(self):
         self.db = sqlite3.connect(self.path)
         self.cursor = self.db.cursor()
     def dump_table(self, table="backup_files"):
+        logging.info("Dumping the %s table",table)
         if any(element["name"] == table for element in self.tables):
             self.cursor.execute("SELECT * FROM %s" % table)
             for row in self.cursor:
@@ -36,30 +48,34 @@ class Database:
             print("No such table")
     def register_backup(self,path):
         if self.backupid is None:
-            self.backupid = (self.cursor.execute('''INSERT into backups(created, path) VALUES (CURRENT_TIMESTAMP, ?)''',[path])).lastrowid
+            logging.info("Registering a backup as backupid not currently set.  Backup path is %s",path)
+            self.backupid = (self.cursor.execute('''INSERT into backups(created, path) VALUES (CURRENT_TIMESTAMP, ?)''',[path])).lastrowid ## What if a backup id deleted?  Will it match the row id?
+        else:
+            logging.debug("backupid already set so just returning it")
         return self.backupid
     def list_backups(self, backupid = "%"):
-        self.cursor.execute("SELECT * FROM backups WHERE id LIKE ?",[backupid])
+        logging.info("Listing backups according to id pattern %s",backupid)
+        self.execute("SELECT * FROM backups WHERE id LIKE ?",[backupid])
         return self.cursor.fetchall()
     def register_file(self,f):
         try:
-            self.cursor.execute('''INSERT into files(hash, size, stored) VALUES (?,?,?)''',(f.hash,f.size,0))
+            self.execute('''INSERT into files(hash, size, stored) VALUES (?,?,?)''',(f.hash,f.size,0))
             return 0
         except sqlite3.IntegrityError:
-            self.cursor.execute("SELECT stored FROM files WHERE hash = ?", [f.hash])
+            self.execute("SELECT stored FROM files WHERE hash = ?", [f.hash])
             return(self.cursor.fetchone()[0]) # Return the stored flag  
     def set_file_as_stored(self, f):
-        self.cursor.execute('''UPDATE files SET stored = 1 WHERE hash = ?''',[f.hash])
+        self.execute('''UPDATE files SET stored = 1 WHERE hash = ?''',[f.hash])
     def register_file_instance(self, f): 
-        self.cursor.execute('''INSERT into backup_files(path, name, file_hash, backup_id) VALUES (?,?,?,?)''',(f.path,f.name,f.hash,self.backupid))
+        self.execute('''INSERT into backup_files(path, name, file_hash, backup_id) VALUES (?,?,?,?)''',(f.path,f.name,f.hash,self.backupid))
     def retreive_files_from_backup(self, backupid = "%"):
-        logging.debug("Entered the retreive_files_from_backup method from Database")
-        self.cursor.execute("SELECT path, name, file_hash FROM backup_files WHERE backup_id LIKE ?",[backupid])
+        logging.debug("Entered the retreive_files_from_backup method from Database with backupid pattern of %s",backupid)
+        self.execute("SELECT path, name, file_hash FROM backup_files WHERE backup_id LIKE ?",[backupid])
         returnable = []
         file_instances = self.cursor.fetchall()
         logging.debug("Retrieved the following file instances...\n%s",file_instances)
         for path,name,file_hash in file_instances:
-            self.cursor.execute("SELECT size FROM files WHERE hash = ?",[file_hash])
+            self.execute("SELECT size FROM files WHERE hash = ?",[file_hash])
             size = self.cursor.fetchone()[0]
             logging.debug("Fetched the size '%s' for file hash '%s'", size, file_hash)
             returnable.append(File(path,name,file_hash,size))
@@ -69,7 +85,7 @@ class Database:
     def verify_tables(self):
         logging.debug("Entered the verify_tables method from Database")
         logging.debug("Gold standard should be...\n%s",self.tables)
-        self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        self.execute("SELECT name FROM sqlite_master WHERE type='table';")
         if len(self.cursor.fetchall()) - 1 is not len(self.tables):
             logging.info("Incorrect number of tables in the Database")
             return False
@@ -91,5 +107,5 @@ class Database:
         return True
     def __init__(self, path):
         self.path = path
-
+        logging.debug("self.path set to %s",self.path)
         self.connect()
