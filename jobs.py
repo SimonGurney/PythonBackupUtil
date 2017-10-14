@@ -110,8 +110,11 @@ class Restore(Job):
         logging.debug("Destination path for restore set to %s",destination)
         logging.debug("Destination file name set to %s",name)
         if not file.restore_file(self.backup_repository, destination, name):
-            logging.info("Restore Failed")
-            print("Restore failed")  
+            logging.warn("Restore Failed")
+            return False
+        else:
+            logging.info("Restore Successful")
+            return True
     def retrieve_inventory(self):
         if not self.test_db():
             return False
