@@ -190,7 +190,7 @@ class Restore(Job):
                 returnable.append({"id":self.inventory.index(File),"type":"file","name":File.name})
         if not returnable:
             return False
-        return returnable
+        return sorted(returnable, key=lambda k: k['name'])
         
     def __init__(self, backup_repository):
         super().__init__(backup_repository)           
