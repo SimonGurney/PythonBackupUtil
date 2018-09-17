@@ -49,7 +49,7 @@ class Database:
     def register_backup(self,path):
         if self.backupid is None:
             logging.info("Registering a backup as backupid not currently set.  Backup path is %s",path)
-            self.backupid = (self.cursor.execute('''INSERT into backups(created, path) VALUES (CURRENT_TIMESTAMP, ?)''',[path])).lastrowid ## What if a backup id deleted?  Will it match the row id?
+            self.backupid = (self.cursor.execute('''INSERT into backups(created, path) VALUES (CURRENT_TIMESTAMP, ?)''',[path])).lastrowid ## What if a backup id deleted?  Will it match the row id? # Not an issue after testing
         else:
             logging.debug("backupid already set so just returning it")
         return self.backupid
@@ -82,6 +82,31 @@ class Database:
             logging.debug("Appended the following file \n%s",name)
         logging.debug("Returning %d objects",len(returnable))
         return returnable
+    def generate_backup_checksum(self, backupid):
+        logging.debug("Entered the generate_backup_checksum function for backup id: %s",backupid)
+        self.execute("SELECT path, name, file_hash FROM backup_files WHERE backup_id LIKE ?",[backupid])
+        file_instances = self.cursor.fetchall()
+        file_instances.sort()
+        #fetched x
+        hash = sha512(str(file_instances).encode()).hexdigest()
+        #returning hash
+        return hash
+    def prune(self):
+        previous_hash = None
+        self.execute("SELECT id FROM backups")
+        for backup in self.cursor.fetchall():
+            current_hash = self.generate_backup_checksum(backup[0])
+            if current_hash == 'b25b294cb4deb69ea00a4c3cf3113904801b6015e5956bd019a8570b1fe1d6040e944ef3cdee16d0a46503ca6e659a25f21cf9ceddc13f352a3c98138c15d6af':
+                continue # NULL row
+            print(current_hash)
+            if current_hash == previous_hash:
+                self.delete_backup(backup[0])
+            previous_hash = current_hash
+        self.commit()
+    def delete_backup(self, backupid):
+        self.execute("DELETE FROM backups WHERE id LIKE ?",[backupid])
+        self.execute("DELETE FROM backup_files WHERE backup_id LIKE ?",[backupid])
+        self.commit()
     def verify_tables(self):
         logging.debug("Entered the verify_tables method from Database")
         logging.debug("Gold standard should be...\n%s",self.tables)
